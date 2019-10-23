@@ -21,4 +21,5 @@
            :test {:extra-paths ["test"]}
            :clj-tests {:extra-paths ["test"]
                        :extra-deps {lambdaisland/kaocha {:mvn/version "0.0-541"}
+                                    lambdaisland/kaocha-junit-xml {:mvn/version "0.0-70"}
                                     lambdaisland/kaocha-cloverage {:mvn/version "0.0-32"}}}}}
