@@ -1,11 +1,12 @@
 (ns avisi.atlassian.connect.interceptors
-  (:require [avisi.atlassian.connect.crux :as connect-crux]))
+  (:require [avisi.atlassian.connect.crux :as connect-crux]
+            [reitit.ring :as ring]))
 
-(defn lifecycle-interceptor [{:keys [crux-node-kw payload-kw]}]
-  (letfn [(enter [{:keys [request] :as ctx}]
-            (connect-crux/handle-lifecycle-payload! (crux-node-kw request)
-                                                    (payload-kw request))
-            (assoc ctx :response {:status 200
-                                  :body "ok"}))]
-    {:name ::lifecycle-interceptor
-     :enter enter}))
+(def lifecycle-interceptor
+  {:name ::lifecycle-interceptor
+   :enter (fn [{:keys [request] :as ctx}]
+            (let [{:avisi.atlassian.connect.server/keys [crux-node]} (:data (ring/get-match request))]
+              (connect-crux/handle-lifecycle-payload! crux-node
+                                                      (:body-params request))
+              (assoc ctx :response {:status 200
+                                    :body "ok"})))})
