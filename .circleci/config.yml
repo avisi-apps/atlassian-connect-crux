@@ -9,3 +9,5 @@ jobs:
       - run: bin/kaocha --plugin kaocha.plugin/junit-xml --junit-xml-file test-results/kaocha/results.xml
       - store_test_results:
           path: test-results
+      - store_artifacts:
+          path: target/coverage
