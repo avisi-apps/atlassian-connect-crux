@@ -1,0 +1,11 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/clojure:tools-deps-1.9.0.394
+    steps:
+      - checkout
+      - run: mkdir -p test-results/kaocha
+      - run: bin/kaocha --plugin kaocha.plugin/junit-xml --junit-xml-file test-results/kaocha/results.xml
+      - store_test_results:
+          path: test-results
