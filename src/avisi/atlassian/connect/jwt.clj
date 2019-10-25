@@ -1,6 +1,6 @@
 (ns avisi.atlassian.connect.jwt
   (:require [buddy.core.codecs :as codecs]
-            [clojure.string :as string]
+            [clojure.string :as str]
             [cheshire.core :as json]
             [buddy.core.codecs.base64 :as base64]
             [ring.util.codec :as codec]
@@ -17,14 +17,14 @@
   (ByteArrayInputStream. (.getBytes s)))
 
 (defn str->jwt-claims [jwt-string]
-  (let [[_ claims _] (string/split jwt-string #"\." 3)]
+  (let [[_ claims _] (str/split jwt-string #"\." 3)]
     (->
      (case (long (mod (count claims) 4))
        2 (str claims "==")
        3 (str claims "=")
        claims)
-     (string/replace "-" "+")
-     (string/replace "_" "/")
+     (str/replace "-" "+")
+     (str/replace "_" "/")
      (base64/decode)
      (codecs/bytes->str)
      (json/parse-string true))))
@@ -35,12 +35,12 @@
   unreserved  = ALPHA / DIGIT / - / . / _ / ~
   See http://tools.ietf.org/html/rfc3986"
   [str]
-  (string/replace (codec/url-encode str) #"\+" "%2B"))
+  (str/replace (codec/url-encode str) #"\+" "%2B"))
 
 (defn sort-if-sequential
   [v]
   (str (if (sequential? v)
-         (string/join "," (sort (map encode-rfc-3986 v)))
+         (str/join "," (sort (map encode-rfc-3986 v)))
          (encode-rfc-3986 v))))
 
 (defn canonicalize-uri
@@ -55,7 +55,7 @@
 (defn canonicalize-method
   "Upper cases the method name so get will become GET"
   [method]
-  (string/upper-case (name method)))
+  (str/upper-case (name method)))
 
 (defn canonicalize-query-params
   "Sort query params for the hash and keys and values with encode-rfc-3986.
@@ -63,7 +63,7 @@
    will also become encoded with rfc-3986"
   [m]
   (let [sorted (sort (map (fn [[k v]] [(encode-rfc-3986 (name k)) v]) m))]
-    (string/join "&" (map (fn [[k v]] (str k "=" (sort-if-sequential v))) sorted))))
+    (str/join "&" (map (fn [[k v]] (str k "=" (sort-if-sequential v))) sorted))))
 
 (defn create-qsh
   "Creates a qsh field for the claim in the json webtoken header for more details
@@ -85,9 +85,9 @@
                 :decoded-jwt decoded-jwt
                 :path path
                 :qsh qsh
-                :create-qsh (create-qsh method path (dissoc query-params :jwt))}
+                :create-qsh (create-qsh method path (dissoc query-params "jwt"))}
                "validate-qsh")
-    (if (= qsh (create-qsh method path (dissoc query-params :jwt)))
+    (if (= qsh (create-qsh method path (dissoc query-params "jwt")))
       decoded-jwt
       (throw (ex-info "Query string header does not match" {:query-params query-params
                                                             :method method
@@ -97,12 +97,26 @@
 
 (defn get-jwt-token
   "Gets the JWT token from either the query params jwt or from the authorization header"
-  [context]
-  (let [headers (:headers context)
-        query-params (:query-params context)]
-    (or
-     (:jwt query-params)
-     (last (string/split (get headers "authorization" "") #" ")))))
+  [{:keys [query-params headers]}]
+  (or (get query-params "jwt")
+      (last (str/split (get headers "authorization" "") #" "))))
+
+(defn validate-jwt-token
+  "Validate an incoming jwt token if we get it from atlassian you should set the option
+  validate-qsh? to true, default is also true, returns the claims if is valid"
+  ([{:keys [claims] :as request} {:keys [validate-qsh? shared-secret]}]
+   (let [jwt-str (get-jwt-token request)]
+     (let [decode-jwt-result (try (jwt/unsign jwt-str shared-secret {:leeway 5}) ;; Give it 5 seconds leeway to fix timing issues
+                                  (catch Exception e
+                                    (throw (ex-info "invalid JWT token" {:type :invalid-jwt-token
+                                                                         :uri (:uri request)
+                                                                         :query (:query-string request)
+                                                                         :cause :validation-failed
+                                                                         :cause-ex-data (ex-data e)
+                                                                         :cause-ex-message (.getMessage ^Exception e)} e))))]
+       (when validate-qsh?
+         (validate-qsh decode-jwt-result request))
+       claims))))
 
 (defn create-jwt-token [{::keys [issuer method url query-params shared-secret claims]
                          :or {claims {}}}]

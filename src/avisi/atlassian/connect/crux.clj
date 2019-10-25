@@ -1,6 +1,7 @@
 (ns avisi.atlassian.connect.crux
   (:require [crux.api :as crux]
             [camel-snake-kebab.core :as csk]
+            [avisi.atlassian.connect.jwt :as jwt]
             [cambium.core :as log])
   (:import [java.time Duration]))
 
@@ -36,4 +37,4 @@
     (crux/sync crux-node (:crux.tx/tx-time tx-result) (Duration/ofSeconds 10))))
 
 (defn get-installation [crux-db client-key]
-  (crux/entity crux-db (client-key->crux-id client-key->crux-id)))
+  (crux/entity crux-db (client-key->crux-id client-key)))

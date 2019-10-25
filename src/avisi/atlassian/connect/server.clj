@@ -1,16 +1,16 @@
 (ns avisi.atlassian.connect.server
   (:require [reitit.ring :as ring]
-            [avisi.atlassian.connect.interceptors :as connect-interceptors]
             [mount.core :refer [defstate]]
             [ring.adapter.jetty :as jetty]
-            [reitit.http :as http]
             [muuntaja.core :as muuntaja-core]
-            [reitit.interceptor.sieppari :as sieppari]
-            [reitit.http.coercion :as coercion]
-            [reitit.http.interceptors.muuntaja :as muuntaja]
-            [reitit.http.interceptors.parameters :as parameters]
-            [reitit.http.interceptors.exception :as exception]
-            [reitit.http.interceptors.multipart :as multipart]
+            [reitit.ring.coercion :as coercion]
+            [reitit.coercion.spec :as spec-coercion]
+            [reitit.ring.spec :as spec]
+            [avisi.atlassian.connect.middleware :as middleware]
+            [reitit.ring.middleware.muuntaja :as muuntaja]
+            [reitit.ring.middleware.exception :as exception]
+            [reitit.ring.middleware.multipart :as multipart]
+            [reitit.ring.middleware.parameters :as parameters]
             [clojure.tools.logging :as log])
   (:import [org.eclipse.jetty.server Server]))
 
@@ -27,9 +27,8 @@
                                 :get atlassian-connect-handler}]
     ["/lifecycle/:lifecycle" {:name ::lifecycle
                               ::crux-node crux-node
-                              :post {:interceptors [connect-interceptors/lifecycle-interceptor]}}]]
-   ["/assets/*" (ring/create-resource-handler)]
-   ))
+                              :post middleware/lifecycle-handler}]]
+   ["/assets/*" (ring/create-resource-handler)]))
 
 (defn ex-handler [message exception request]
   (log/error exception message {:api "REST"
@@ -41,44 +40,53 @@
           :exception (str exception)
           :uri (:uri request)}})
 
-(def default-interceptors
-  [(muuntaja/format-negotiate-interceptor)
-   ;; query-params & form-params
-   (parameters/parameters-interceptor)
+(defn jwt-token-ex-handler [exception request]
+  {:status 401
+   :body {:message "Invalid jwt token"
+          :exception (str exception)
+          :uri (:uri request)}})
+
+(defn default-middleware [{:keys [crux-node]}]
+  [;; query-params & form-params
+   parameters/parameters-middleware
    ;; content-negotiation
-   (muuntaja/format-negotiate-interceptor)
+   muuntaja/format-negotiate-middleware
    ;; encoding response body
-   (muuntaja/format-response-interceptor)
+   muuntaja/format-response-middleware
    ;; exception handling
-   (exception/exception-interceptor
+   (exception/create-exception-middleware
     (merge
      exception/default-handlers
-     {::exception/default (partial ex-handler "Unexpected exception")}))
+     {:invalid-jwt-token jwt-token-ex-handler
+      ::exception/default (partial ex-handler "Unexpected exception")}))
    ;; decoding request body
-   (muuntaja/format-request-interceptor)
+   muuntaja/format-request-middleware
    ;; coercing response bodys
-   (coercion/coerce-response-interceptor)
+   coercion/coerce-response-middleware
    ;; coercing request parameters
-   (coercion/coerce-request-interceptor)
+   coercion/coerce-request-middleware
    ;; multipart
-   (multipart/multipart-interceptor)])
+   multipart/multipart-middleware
+   ;; Crux
+   [middleware/with-crux-db crux-node]
+   ;; support for jwt validation for request from atlassian or your app
+   middleware/wrap-enforce-jwt-validation])
 
-(defn router
-  ([routes-vec]
-   (http/router
-    routes-vec
-    {:data {:muuntaja muuntaja-core/instance
-            :interceptors default-interceptors}})))
-
+(defn router [routes-vec {:keys [middleware]}]
+  (ring/router
+   routes-vec
+   {:validate spec/validate
+    :data {:coercion spec-coercion/coercion
+           :muuntaja muuntaja-core/instance
+           :middleware middleware}}))
 
 (defn app
   ([router]
-   (http/ring-handler
+   (ring/ring-handler
     router
     (ring/routes
      (ring/redirect-trailing-slash-handler)
-     (ring/create-default-handler))
-    {:executor sieppari/executor})))
+     (ring/create-default-handler)))))
 
 (defmacro defhandler
   "defines a ring-handler backed by reitit.
@@ -94,12 +102,16 @@
            ((app (router (with-built-in-routes
                           {:routes ~routes
                            :crux-node ~crux-node
-                           :atlassian-connect-edn ~atlassian-connect-edn}))) request#))
-        (app (router ~routes)))))
+                           :atlassian-connect-edn ~atlassian-connect-edn})
+                         {:middleware (default-middleware {:crux-node ~crux-node})})) request#))
+        (app (router (with-built-in-routes
+                      {:routes ~routes
+                       :crux-node ~crux-node
+                       :atlassian-connect-edn ~atlassian-connect-edn})
+                     {:middleware (default-middleware {:crux-node ~crux-node})})))))
 
 (comment
   (defstate server
     :start (jetty/run-jetty app-handler {:port 3000
-                                         :join? false
-                                         :async true})
+                                         :join? false})
     :stop (.stop ^Server server)))
