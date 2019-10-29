@@ -1,43 +1,52 @@
 (ns avisi.atlassian.connect.http-client
   (:require [avisi.atlassian.connect.jwt :as jwt]
-            [clojure.tools.logging :as log]
-            [clj-http.client :as http]))
+            [clj-http.client :as http]
+            [clojure.spec.alpha :as s]
+            [cambium.core :as log]
+            [clojure.string :as str]))
 
-(defn request
-  [method host url opts]
-  (let [add-on-key (:atlassian-connect.client/key host)
-        shared-secret (:atlassian-connect.client/shared-secret host)
-        base-url (:atlassian-connect.client/base-url host)
-        jwt-auth-header (str "JWT " (jwt/create-jwt-token {::jwt/issuer add-on-key
-                                                           ::jwt/method method
-                                                           ::jwt/url url
-                                                           ::jwt/query-params (:query-params opts {})
-                                                           ::jwt/shared-secret shared-secret}))]
-    (http/request (-> (assoc opts
-                             :request-method method
-                             :url (str base-url url)
-                             :as :json
-                             :content-type :json
-                             :throw-entire-message? true)
-                      (update-in [:headers] #(assoc % "Authorization" jwt-auth-header))))))
+(s/def ::endpoint #(str/starts-with? % "/"))
+(s/def ::method #{:get :post :put :head :delete})
+(s/def ::query-params map?)
+(s/def ::headers map?)
+(s/def ::body any?)
 
-(defn impersonated-request
-  [impersonation-token method host url opts]
-  (let [bearer-token (str "Bearer " (:access_token impersonation-token))]
-    (http/request (-> (assoc opts
-                             :request-method method
-                             :url (str (:host/base-url host) url)
-                             :as :json
-                             :content-type :json
-                             :throw-entire-message? true)
-                      (update-in [:headers] #(assoc % "Authorization" bearer-token))))))
+(defn jwt-auth-header [{:keys [host]
+                        ::keys [method endpoint query-params]}]
+  (let [addon-key (:atlassian-connect.host/key host)
+        shared-secret (:atlassian-connect.host/shared-secret host)]
+    (str "JWT " (jwt/create-jwt-token {::jwt/iss addon-key
+                                       ::jwt/method (or method :get)
+                                       ::jwt/url endpoint
+                                       ::jwt/query-params query-params
+                                       ::jwt/shared-secret shared-secret}))))
+
+(defn client [{::keys [endpoint
+                       method
+                       body
+                       query-params
+                       headers]
+               :keys [host]
+               :or {method :get} :as env}]
+  (let [auth-header (jwt-auth-header env)
+        base-url (:atlassian-connect.host/base-url host)]
+    (log/with-logging-context {:endpoint endpoint
+                               :client ::client
+                               :method method}
+      (->
+       (http/request (cond-> {:request-method method
+                              :url (str base-url endpoint)
+                              :as :json
+                              :content-type :json
+                              :throw-entire-message? true
+                              :headers {"Authorization" auth-header}}
+                             headers (update :headers merge headers)
+                             query-params (assoc :query-params query-params)
+                             body (assoc :form-params body)))
+       :body))))
 
 (comment
-
-  (request
-   :get
-   (dev/get-install)
-   "/rest/api/3/project/search"
-   {})
-
+  (client
+   {:host (dev/get-install)
+    ::endpoint "/rest/api/2/project/search"})
   )

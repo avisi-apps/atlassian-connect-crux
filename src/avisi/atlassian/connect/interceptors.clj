@@ -1,4 +1,4 @@
-(ns avisi.atlassian.connect.middleware
+(ns avisi.atlassian.connect.interceptors
   (:require [reitit.ring :as ring]
             [avisi.atlassian.connect.crux :as connect-crux]
             [clojure.spec.alpha :as s]
@@ -7,7 +7,7 @@
             [crux.api :as crux]
             [avisi.atlassian.connect.jwt :as jwt]))
 
-(defn host-request
+(defn- host-request
   "Adds host from jwt token to the request, or throws a error when the jwt token is invalid"
   [request {:keys [validate-qsh?]}]
   (let [jwt-token (jwt/get-jwt-token request)
@@ -25,32 +25,36 @@
                                      :shared-secret (:atlassian-connect.host/shared-secret host)})
     request))
 
-(s/def ::jwt-validation #{:from-atlassian :from-app})
+(s/def ::jwt-validation #{:jwt-validation/from-atlassian :jwt-validation/from-app})
 
-(def wrap-enforce-jwt-validation
-  {:name ::wrap-enforce-jwt-validation
+(defn atlassian-host-interceptor-ex-handler [{:keys [request error] :as ctx}]
+  (if (= :invalid-jwt-token (:type (ex-data error)))
+    (do
+      (log/warn {:api "REST"
+                  :request-method (:request-method request)
+                  :query-string (:query-string request)
+                  :uri (:uri request)} error "Invalid jwt token detected")
+      (-> ctx
+          (dissoc :error)
+          (assoc :response {:status 401
+                            :body {:message "invalid jwt token"
+                                   :exception (ex-data error)
+                                   :uri (:uri request)}})))
+    ctx))
+
+(defn atlassian-host-interceptor []
+  {:name ::atlassian-host-interceptor
    :spec (s/keys :req-un [::jwt-validation])
-   :description "Used to validate incoming jwt tokens from Atlassian or your app"
+   :description "Used to validate incoming jwt tokens from Atlassian or your app and to add the host to requests"
+   :error atlassian-host-interceptor-ex-handler
    :compile (fn [route-data _opts]
               (when-let [jwt-validation (:jwt-validation route-data)]
                 (let [options (case jwt-validation
-                                :from-atlassian {:validate-qsh? true}
-                                :from-app {:validate-qsh? false}
+                                :jwt-validation/from-atlassian {:validate-qsh? true}
+                                :jwt-validation/from-app {:validate-qsh? false}
                                 nil)]
-                  (fn [handler]
-                    (fn
-                      ([request]
-                       (handler (host-request request options)))
-                      ([request respond raise]
-                       (handler (host-request request options) respond raise)))))))})
-
-(def with-crux-db
-  {:name ::with-crux-db
-   :wrap (fn [handler crux-node]
-           (fn [request]
-             (handler (assoc request
-                             :crux-node crux-node
-                             :crux-db (crux/db crux-node)))))})
+                  {:enter (fn [ctx]
+                            (update ctx :request host-request options))})))})
 
 (def lifecycle-handler
   {:handler (fn [request]
@@ -58,3 +62,15 @@
                 (connect-crux/handle-lifecycle-payload! crux-node (:body-params request))
                 {:status 200
                  :body "ok"}))})
+
+(defn crux-db-interceptor [crux-node]
+  {:name ::crux
+   :enter (fn [ctx]
+            (update ctx :request assoc
+                    :crux-node crux-node
+                    :crux-db (crux/db crux-node)))})
+
+(defn dev-interceptor [dev?]
+  {:name ::dev
+   :enter (fn [ctx] (update ctx :request assoc :dev? dev?))})
+

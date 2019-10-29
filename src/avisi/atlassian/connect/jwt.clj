@@ -101,6 +101,15 @@
   (or (get query-params "jwt")
       (last (str/split (get headers "authorization" "") #" "))))
 
+(defn create-session-token [{::keys [shared-secret context sub iss]}]
+  (jwt/sign
+   {:context context
+    :sub sub
+    :iss iss
+    :exp (time/plus (time/now) (time/hours 1))
+    :iat (time/now)}
+   shared-secret))
+
 (defn validate-jwt-token
   "Validate an incoming jwt token if we get it from atlassian you should set the option
   validate-qsh? to true, default is also true, returns the claims if is valid"
@@ -118,11 +127,11 @@
          (validate-qsh decode-jwt-result request))
        claims))))
 
-(defn create-jwt-token [{::keys [issuer method url query-params shared-secret claims]
+(defn create-jwt-token [{::keys [iss method url query-params shared-secret claims]
                          :or {claims {}}}]
   (jwt/sign
    (merge
-    {:iss issuer
+    {:iss iss
      :exp (time/plus (time/now) (time/minutes 5))
      :iat (time/now)
      :qsh (create-qsh method url query-params)}
