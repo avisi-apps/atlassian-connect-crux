@@ -90,21 +90,21 @@
                routes
                crux-node
                atlassian-connect-edn]}]
-  `(def ~sym
-     (if ~dev?
-        (fn [& args#]
-          (apply (app (router (with-built-in-routes
-                               {:routes ~routes
-                                :crux-node ~crux-node
-                                :atlassian-connect-edn ~atlassian-connect-edn})
-                              {:interceptors (default-interceptors {:crux-node ~crux-node
-                                                                    :dev? ~dev?})})) args#))
-        (app (router (with-built-in-routes
-                      {:routes ~routes
-                       :crux-node ~crux-node
-                       :atlassian-connect-edn ~atlassian-connect-edn})
-                     {:interceptors (default-interceptors {:crux-node ~crux-node
-                                                           :dev? ~dev?})})))))
+  `(defstate ~sym
+     :start (if ~dev?
+              (fn [& args#]
+                (apply (app (router (with-built-in-routes
+                                     {:routes ~routes
+                                      :crux-node ~crux-node
+                                      :atlassian-connect-edn ~atlassian-connect-edn})
+                                    {:interceptors (default-interceptors {:crux-node ~crux-node
+                                                                          :dev? ~dev?})})) args#))
+              (app (router (with-built-in-routes
+                            {:routes ~routes
+                             :crux-node ~crux-node
+                             :atlassian-connect-edn ~atlassian-connect-edn})
+                           {:interceptors (default-interceptors {:crux-node ~crux-node
+                                                                 :dev? ~dev?})})))))
 
 (comment
   (defstate server
