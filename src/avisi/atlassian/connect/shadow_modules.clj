@@ -25,7 +25,7 @@
   I would suggest loading the manifest in a mount.core/defstate so
   you can re-eval the manifest config during dev"
   [source]
-  (with-open [r (io/reader source)]
+  (with-open [r (io/reader (io/resource source))]
     (edn/read (PushbackReader. r))))
 
 (def
