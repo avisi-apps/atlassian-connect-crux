@@ -31,9 +31,9 @@
   (if (= :invalid-jwt-token (:type (ex-data error)))
     (do
       (log/warn {:api "REST"
-                  :request-method (:request-method request)
-                  :query-string (:query-string request)
-                  :uri (:uri request)} error "Invalid jwt token detected")
+                 :request-method (:request-method request)
+                 :query-string (:query-string request)
+                 :uri (:uri request)} error "Invalid jwt token detected")
       (-> ctx
           (dissoc :error)
           (assoc :response {:status 401
@@ -59,7 +59,7 @@
 (def lifecycle-handler
   {:handler (fn [request]
               (let [{:avisi.atlassian.connect.server/keys [crux-node]} (:data (ring/get-match request))]
-                (connect-crux/handle-lifecycle-payload! crux-node (:body-params request))
+                (connect-crux/handle-lifecycle-payload! crux-node request)
                 {:status 200
                  :body "ok"}))})
 

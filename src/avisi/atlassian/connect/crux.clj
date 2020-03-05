@@ -18,14 +18,18 @@
    {}
    m))
 
-(defn handle-lifecycle-payload! [crux-node lifecycle-payload]
-  (let [lifecycle-payload (namespace-all-keys lifecycle-payload)
+(defn handle-lifecycle-payload! [crux-node request]
+  (let [lifecycle-payload (namespace-all-keys (:body-params request))
         _ (log/info (select-keys lifecycle-payload [:atlassian-connect.host/base-url
                                                     :atlassian-connect.host/client-key
                                                     :atlassian-connect.host/event-type]) "Installing host")
         id (client-key->crux-id (:atlassian-connect.host/client-key lifecycle-payload))
         db (crux/db crux-node)
         prev-lifecycle (crux/entity db id)
+        ;; Check JWT token on subsequent calls, this prevents tinkering with shared-secrets of hosts.
+        _ (when prev-lifecycle
+            (jwt/validate-jwt-token request {:validate-qsh? true
+                                             :shared-secret (:atlassian-connect.host/shared-secret prev-lifecycle)}))
         tx-result (crux/submit-tx
                    crux-node
                    [[:crux.tx/cas
