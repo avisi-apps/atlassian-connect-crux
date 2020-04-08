@@ -1,6 +1,6 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.10.1"}
-        juxt/crux-core {:mvn/version "19.09-1.5.0-alpha"}
+        juxt/crux-core {:mvn/version "20.04-1.8.1-alpha"}
         metosin/reitit-http {:mvn/version "0.3.10"}
         metosin/reitit-interceptors {:mvn/version "0.3.10"}
         metosin/reitit-sieppari {:mvn/version "0.3.10"}
@@ -10,7 +10,7 @@
         camel-snake-kebab {:mvn/version "0.4.0"}
         cambium/cambium.core {:mvn/version "0.9.3"}
         hiccup {:mvn/version "2.0.0-alpha2"}
-        com.wsscode/pathom {:mvn/version "2.2.26"}
+        com.wsscode/pathom {:mvn/version "2.2.28"}
         clj-http {:mvn/version "3.10.0"}}
  :aliases {:dev {:extra-paths ["dev" "dev-resources"]
                  :extra-deps {ch.qos.logback/logback-classic {:mvn/version "1.2.3"}
@@ -19,11 +19,10 @@
                               cambium/cambium.logback.core {:mvn/version "0.4.3"}
                               mount {:mvn/version "0.1.16"}
                               ring/ring-jetty-adapter {:mvn/version "1.7.1"}
-                              juxt/crux-rocksdb {:mvn/version "19.09-1.5.0-alpha"}
-                              metosin/reitit-dev {:mvn/version "0.3.10"}
-                              org.clojure/tools.namespace {:mvn/version "0.3.1"}}}
+                              juxt/crux-rocksdb {:mvn/version "20.04-1.8.1-alpha"}
+                              metosin/reitit-dev {:mvn/version "0.3.10"}}}
            :test {:extra-paths ["test"]}
            :clj-tests {:extra-paths ["test"]
-                       :extra-deps {lambdaisland/kaocha {:mvn/version "0.0-541"}
+                       :extra-deps {lambdaisland/kaocha {:mvn/version "0.0-554"}
                                     lambdaisland/kaocha-junit-xml {:mvn/version "0.0-70"}
-                                    lambdaisland/kaocha-cloverage {:mvn/version "0.0-32"}}}}}
+                                    lambdaisland/kaocha-cloverage {:mvn/version "0.0-41"}}}}}
