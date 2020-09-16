@@ -5,7 +5,8 @@
             [cambium.core :as log]
             [clojure.string :as str]
             [crux.api :as crux]
-            [avisi.atlassian.connect.jwt :as jwt]))
+            [avisi.atlassian.connect.jwt :as jwt]
+            [ring.util.response :as response]))
 
 (defn- host-request
   "Adds host from jwt token to the request, or throws a error when the jwt token is invalid"
@@ -56,6 +57,48 @@
                   {:enter (fn [ctx]
                             (update ctx :request host-request options))})))})
 
+(defn invalid-license? [{:keys [query-params]}] (not= (:lic query-params) "active"))
+
+(defn atlassian-marketplace-license-ex-handler [invalid-license-html]
+  (fn
+    [{:keys [request error]
+      :as ctx}]
+    (if (= :invalid-license (:type (ex-data error)))
+      (do
+        (log/warn
+          {:request-method (:request-method request)
+           :query-string (:query-string request)
+           :uri (:uri request)}
+          error
+          "Invalid license detected")
+        (->
+          ctx
+          (dissoc :error)
+          (assoc
+            :response
+            (->
+              invalid-license-html
+              response/response
+              (response/status 403)
+              (response/content-type "text/html")
+              (response/header "Content-Security-Policy" "")))))
+      ctx)))
+
+(defn check-license? [{:keys [jwt-validation]}]
+  (= jwt-validation :jwt-validation/from-atlassian))
+
+(defn validate-license-interceptor [{:keys [skip-license-check? invalid-license-html]}]
+  {:name ::validate-license-interceptor
+   :error (atlassian-marketplace-license-ex-handler invalid-license-html)
+   :compile
+   (fn [route-data _]
+     (when (and (not skip-license-check?) (check-license? route-data))
+       {:enter
+        (fn [{:keys [request] :as ctx}]
+          (if (invalid-license? request)
+            (throw (ex-info "Invalid license" {:type :invalid-license}))
+            ctx))}))})
+
 (def lifecycle-handler
   {:handler (fn [request]
               (let [{:avisi.atlassian.connect.server/keys [crux-node]} (:data (ring/get-match request))]
@@ -73,4 +116,3 @@
 (defn dev-interceptor [dev?]
   {:name ::dev
    :enter (fn [ctx] (update ctx :request assoc :dev? dev?))})
-

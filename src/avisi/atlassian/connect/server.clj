@@ -42,7 +42,7 @@
           :exception (str exception)
           :uri (:uri request)}})
 
-(defn default-interceptors [{:keys [crux-node dev?]}]
+(defn default-interceptors [{:keys [crux-node dev? skip-license-check? invalid-license-html]}]
   [;; query-params & form-params
    (parameters/parameters-interceptor)
    ;;; Content-negotiation
@@ -52,7 +52,7 @@
     (merge
      exception/default-handlers
      {::exception/default (partial ex-handler "Unexpected exception")}))
-   ;; coercing response bodys
+   ;; coercing response bodies
    (coercion/coerce-response-interceptor)
    ;; coercing request parameters
    (coercion/coerce-request-interceptor)
@@ -60,6 +60,10 @@
    (multipart/multipart-interceptor)
    ;; Add dev stuff
    (middleware/dev-interceptor dev?)
+   ;; License check
+   (middleware/validate-license-interceptor
+     {:skip-license-check? skip-license-check?
+      :invalid-license-html invalid-license-html})
    ;; Crux
    (middleware/crux-db-interceptor crux-node)
    ;; support for jwt validation for request from atlassian or your app
@@ -89,7 +93,10 @@
   [sym {:keys [dev?
                routes
                crux-node
-               atlassian-connect-edn]}]
+               atlassian-connect-edn
+               skip-license-check?
+               invalid-license-html]
+        :or {skip-license-check? false}}]
   `(defstate ~sym
      :start (if ~dev?
               (fn [& args#]
@@ -98,13 +105,17 @@
                                       :crux-node ~crux-node
                                       :atlassian-connect-edn ~atlassian-connect-edn})
                                     {:interceptors (default-interceptors {:crux-node ~crux-node
-                                                                          :dev? ~dev?})})) args#))
+                                                                          :dev? ~dev?
+                                                                          :skip-license-check? ~skip-license-check?
+                                                                          :invalid-license-html ~invalid-license-html})})) args#))
               (app (router (with-built-in-routes
                             {:routes ~routes
                              :crux-node ~crux-node
                              :atlassian-connect-edn ~atlassian-connect-edn})
                            {:interceptors (default-interceptors {:crux-node ~crux-node
-                                                                 :dev? ~dev?})})))))
+                                                                 :dev? ~dev?
+                                                                 :skip-license-check? ~skip-license-check?
+                                                                 :invalid-license-html ~invalid-license-html})})))))
 
 (comment
   (defstate server
