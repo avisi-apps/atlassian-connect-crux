@@ -25,4 +25,8 @@
            :clj-tests {:extra-paths ["test"]
                        :extra-deps {lambdaisland/kaocha {:mvn/version "0.0-554"}
                                     lambdaisland/kaocha-junit-xml {:mvn/version "0.0-70"}
-                                    lambdaisland/kaocha-cloverage {:mvn/version "0.0-41"}}}}}
+                                    lambdaisland/kaocha-cloverage {:mvn/version "0.0-41"}}}
+           :lint {:extra-deps {avisi-apps/fmt {:git/url "git@github.com:avisi-apps/fmt.git"
+                                               :sha "b41d298f52cae6fd91aa908b36699a46ac38bc05"}}
+                  :main-opts ["-m" "avisi-apps.fmt.main" "check"]}
+           :fix {:main-opts ["-m" "avisi-apps.fmt.main" "fix"]}}}
