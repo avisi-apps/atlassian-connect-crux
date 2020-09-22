@@ -72,7 +72,7 @@
                          nil)]
            {:enter (fn [ctx] (update ctx :request host-request options))})))})
 
-(defn invalid-license? [{:keys [query-params]}] (not= (:lic query-params) "active"))
+(defn invalid-license? [{:keys [query-params]}] (not= (get query-params "lic") "active"))
 
 (defn atlassian-marketplace-license-ex-handler [invalid-license-html]
   (fn
