@@ -7,22 +7,35 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: atlassian-connect-crux-formatting-cp-{{ checksum "deps.edn" }}-{{ arch }}
+          key: atlassian-connect-firestore-formatting-cp-{{ checksum "deps.edn" }}-{{ arch }}
       - run: clojure -A:lint
       - save_cache:
           paths:
             - /home/circleci/.cpcache
             - /home/circleci/.gitlibs
             - /home/circleci/.m2
-          key: atlassian-connect-crux-formatting-cp-{{ checksum "deps.edn" }}-{{ arch }}
+          key: atlassian-connect-firestore-formatting-cp-{{ checksum "deps.edn" }}-{{ arch }}
 
   build:
     docker:
-      - image: circleci/clojure:tools-deps-1.9.0.394
+      - image: circleci/clojure:openjdk-11-tools-deps-1.10.1.561-buster-node-browsers-legacy
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - atlassian-connect-firestore-build-{{ checksum "deps.edn" }}
+            - atlassian-connect-firestore-build-
       - run: mkdir -p test-results/kaocha
-      - run: bin/kaocha --plugin kaocha.plugin/junit-xml --junit-xml-file test-results/kaocha/results.xml
+      - run: yarn install
+      - run:
+          command: yarn firebase emulators:exec 'bin/kaocha --plugin kaocha.plugin/junit-xml --junit-xml-file test-results/kaocha/results.xml'
+          environment:
+            FIRESTORE_EMULATOR_HOST: localhost:8080
+      - save_cache:
+          paths:
+            - /home/circleci/.cache/firebase/emulators
+            - /home/circleci/project/node_modules
+          key: atlassian-connect-firestore-build-{{ checksum "deps.edn" }}
       - store_test_results:
           path: test-results
       - store_artifacts:

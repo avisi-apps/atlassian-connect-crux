@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "firebase-tools": "9.2.2"
+  },
+  "scripts": {
+    "dev-firebase": "yarn firebase emulators:start"
+  }
+}

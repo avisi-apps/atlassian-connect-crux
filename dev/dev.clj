@@ -1,13 +1,12 @@
 (ns dev
   (:require
-    [avisi.atlassian.connect.example-crux :as crux-node]
     [clojure.tools.namespace.repl :as tn]
     [avisi.atlassian.connect.example-server :as server]
     [avisi.atlassian.connect.example-atlassian-connect :as atlassian-connect]
-    [mount.core :as mount]
-    [crux.api :as crux]))
+    [avisi.atlassian.connect.firestore :as connect-firestore]
+    [mount.core :as mount]))
 
-(defn start [] (mount/start #'crux-node/node #'server/server #'atlassian-connect/edn))
+(defn start [] (mount/start #'server/server #'atlassian-connect/edn))
 
 (defn stop [] (mount/stop))
 
@@ -23,16 +22,8 @@
   (tn/refresh :after 'dev/go))
 
 (defn get-install []
-  (when-let [eid (ffirst
-                   (crux/q
-                     (crux/db crux-node/node)
-                     {:find '[?e]
-                      :where '[[?e :atlassian-connect.host/client-key _]]}))]
-    (crux/entity (crux/db crux-node/node) eid)))
-
-(defn get-install-history []
-  (let [eid (:crux.db/id (get-install))
-        db (crux/db crux-node/node)]
-    (crux/history-descending db (crux/new-snapshot db) eid)))
-
-(comment (go) (get-install-history))
+  (first
+    (connect-firestore/collection-entities
+      {::connect-firestore/firestore connect-firestore/service
+       ::connect-firestore/collection "hosts"
+       ::connect-firestore/firestore nil})))
