@@ -2,3 +2,8 @@ target
 .cpcache
 .idea
 *.iml
+node_modules
+.firebase
+firebase-debug.log*
+firebase-debug.*.log*
+.nrepl-port

@@ -1,11 +1,11 @@
-# Atlassian connect crux
+# Atlassian connect firestore
 
-`atlassian-connect-crux` is a framework for starting Atlassian connect addons with Clojur and Crux.
+`atlassian-connect-firestore` is a framework for starting Atlassian connect addons with Clojure and Firestore.
 
 ## Used libraries
-We use the following libraries and being familair with them will help a lot:
+We use the following libraries and being familiar with them will help a lot:
 
 * [reitit](https://metosin.github.io/reitit/)
-* [juxt](https://juxt.pro/crux)
+* [firestore](https://firebase.google.com/docs/firestore)
 
 

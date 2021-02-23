@@ -22,7 +22,7 @@
   {:status 200
    :body (get-in (http/get-match request) [:data ::atlassian-connect-edn])})
 
-(defn with-built-in-routes [{:keys [routes crux-node atlassian-connect-edn]}]
+(defn with-built-in-routes [{:keys [routes firestore atlassian-connect-edn]}]
   (conj
     routes
     ["/connect"
@@ -32,7 +32,7 @@
        :get {:handler atlassian-connect-handler}}]
      ["/lifecycle/:lifecycle"
       {:name ::lifecycle
-       ::crux-node crux-node
+       ::firestore firestore
        :post middleware/lifecycle-handler}]]
     ["/assets/*" (ring/create-resource-handler)]))
 
@@ -50,7 +50,7 @@
       :exception (str exception)
       :uri (:uri request)}})
 
-(defn default-interceptors [{:keys [crux-node dev? skip-license-check? invalid-license-html]}]
+(defn default-interceptors [{:keys [firestore dev? skip-license-check? invalid-license-html]}]
   [;; query-params & form-params
    (parameters/parameters-interceptor)
    ;;; Content-negotiation
@@ -70,8 +70,8 @@
    (middleware/validate-license-interceptor
      {:skip-license-check? skip-license-check?
       :invalid-license-html invalid-license-html})
-   ;; Crux
-   (middleware/crux-db-interceptor crux-node)
+   ;; Firestore
+   (middleware/firestore-interceptor firestore)
    ;; support for jwt validation for request from atlassian or your app
    (middleware/atlassian-host-interceptor)])
 
@@ -96,8 +96,10 @@
   if you give this handler as option `:dev?` true, it will
   make sure that all the routes are reloadable"
   [sym
-   {:keys [dev? routes crux-node atlassian-connect-edn skip-license-check? invalid-license-html]
-    :or {skip-license-check? false}}]
+   {:keys [dev? routes firestore atlassian-connect-edn skip-license-check? invalid-license-html extra-interceptors]
+    :or
+      {skip-license-check? false
+       extra-interceptors []}}]
   `(defstate ~sym
      :start
      (if ~dev?
@@ -107,27 +109,31 @@
              (router
                (with-built-in-routes
                  {:routes ~routes
-                  :crux-node ~crux-node
+                  :firestore ~firestore
                   :atlassian-connect-edn ~atlassian-connect-edn})
                {:interceptors
-                  (default-interceptors
-                    {:crux-node ~crux-node
-                     :dev? ~dev?
-                     :skip-license-check? ~skip-license-check?
-                     :invalid-license-html ~invalid-license-html})}))
+                  (into
+                    (default-interceptors
+                      {:dev? ~dev?
+                       :firestore ~firestore
+                       :skip-license-check? ~skip-license-check?
+                       :invalid-license-html ~invalid-license-html})
+                    ~extra-interceptors)}))
            args#))
        (app
          (router
            (with-built-in-routes
              {:routes ~routes
-              :crux-node ~crux-node
+              :firestore ~firestore
               :atlassian-connect-edn ~atlassian-connect-edn})
            {:interceptors
-              (default-interceptors
-                {:crux-node ~crux-node
-                 :dev? ~dev?
-                 :skip-license-check? ~skip-license-check?
-                 :invalid-license-html ~invalid-license-html})})))))
+              (into
+                (default-interceptors
+                  {:firestore ~firestore
+                   :dev? ~dev?
+                   :skip-license-check? ~skip-license-check?
+                   :invalid-license-html ~invalid-license-html})
+                ~extra-interceptors)})))))
 
 (comment
   (defstate server

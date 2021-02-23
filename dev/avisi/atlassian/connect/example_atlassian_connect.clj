@@ -6,8 +6,8 @@
 (defstate edn
   :start
   (let [base-url (ngrok/get-base-url)]
-    {:name "Crux lifecycle"
-     :key "nl.avisi.crux.lifecycle"
+    {:name "Firestore Lifecycle"
+     :key "nl.avisi.firestore.lifecycle"
      :description "Lifecycle example"
      :vendor
        {:name "Avisi"

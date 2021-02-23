@@ -1,11 +1,10 @@
 (ns avisi.atlassian.connect.interceptors
   (:require
     [reitit.ring :as ring]
-    [avisi.atlassian.connect.crux :as connect-crux]
+    [avisi.atlassian.connect.firestore :as connect-firestore]
     [clojure.spec.alpha :as s]
     [cambium.core :as log]
     [clojure.string :as str]
-    [crux.api :as crux]
     [avisi.atlassian.connect.jwt :as jwt]
     [ring.util.response :as response]))
 
@@ -22,7 +21,7 @@
                  :query (:query-string request)
                  :cause :missing-jwt-token})))
         claims (jwt/str->jwt-claims jwt-token)
-        host (connect-crux/get-installation (:crux-db request) (:iss claims))
+        host (connect-firestore/get-installation (:firestore request) (:iss claims))
         request (assoc request
                   :host host
                   :claims claims)]
@@ -116,15 +115,15 @@
 (def lifecycle-handler
   {:handler
      (fn [request]
-       (let [{:avisi.atlassian.connect.server/keys [crux-node]} (:data (ring/get-match request))]
-         (connect-crux/handle-lifecycle-payload! crux-node request)
+       (let [{:avisi.atlassian.connect.server/keys [firestore]} (:data (ring/get-match request))]
+         (connect-firestore/handle-lifecycle-payload! firestore request)
          {:status 200
           :body "ok"}))})
-
-(defn crux-db-interceptor [crux-node]
-  {:name ::crux
-   :enter (fn [ctx] (update ctx :request assoc :crux-node crux-node :crux-db (crux/db crux-node)))})
 
 (defn dev-interceptor [dev?]
   {:name ::dev
    :enter (fn [ctx] (update ctx :request assoc :dev? dev?))})
+
+(defn firestore-interceptor [firestore]
+  {:name ::firestore
+   :enter (fn [ctx] (update ctx :request assoc :firestore firestore))})
